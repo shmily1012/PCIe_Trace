@@ -31,6 +31,7 @@ class Trace(object):
         fo.close()
         boundary_list = list()
         line_number = 0
+#         for line in self.buf[:500]:  # for Test
         for line in self.buf:
 #             print(line)
             if '_______|______________________________________________________________________' in line:
@@ -41,6 +42,9 @@ class Trace(object):
             self.trace.append(self.translate(self.buf[boundary_list[id]: boundary_list[id + 1]]))
 #             print (boundary_list[id], boundary_list[id + 1])
             id += 1
+#         p = self.translate(self.buf[boundary_list[id - 1]: boundary_list[id]])
+#         p.show()
+#         sys.exit()
 #         self.nvme = NVMe()
 #         for item in self.trace:
 #             item.show()
@@ -171,6 +175,7 @@ class Trace(object):
 
                 
 if __name__ == "__main__":
+    nvme_cmd_list = list()
     nvme_list = list()
     t = Trace('Failure_trim_txt.txt')
 #     t.translate(t.buf[153: 160])
@@ -193,6 +198,7 @@ if __name__ == "__main__":
         nvme_list.append(item)
     count = 0
     while len(nvme_list):
+        print(len(nvme_list))
         cqdoorbell = None
         cqentry = None
         sqentry = None
@@ -205,47 +211,87 @@ if __name__ == "__main__":
             continue
         # Find last CQ Doorbell 
         cqdoorbell = packet
+#         packet.show()
+#         sys.exit()
         nvmecmd.addCQDoorbell(cqdoorbell)
         id = len(nvme_list) - 1
 #         print('cqdoorbell.Qid=', cqdoorbell.Qid)
 #         print('nvme.CQEntryBaseAddressArray=', nvme.CQEntryBaseAddressArray)
         CQ_address = {'high':0x0, 'low':0x0}
-        CQ_address['low'] = 0x10 * (cqdoorbell.DoorbellValue - 0x1) + nvme.CQEntryBaseAddressArray[cqdoorbell.Qid]['low']
+        if cqdoorbell.DoorbellValue == 0x0:
+            CQ_address['low'] = (0x10 * nvme.CQSizeArray[cqdoorbell.Qid]) + nvme.CQEntryBaseAddressArray[cqdoorbell.Qid]['low']
+        else:
+            CQ_address['low'] = 0x10 * (cqdoorbell.DoorbellValue - 0x1) + nvme.CQEntryBaseAddressArray[cqdoorbell.Qid]['low']
         CQ_address['high'] = nvme.CQEntryBaseAddressArray[cqdoorbell.Qid]['high']
+#         print ('CQ_address=0x%x 0x%x' % (CQ_address['high'], CQ_address['low']))
+
         # Find Match CQ Entry
-        for item in nvme_list[::-1]:
-            if item.type == 'CQ Entry':
-                if CQ_address == item.address:
-                    cqentry = item
+#         for item in nvme_list[::-1]:
+        while id > 0:
+#             print('item.type=', nvme_list[id].type)
+#             print('item.address=0x%x 0x%x' % (nvme_list[id].address['high'],
+#                                               nvme_list[id].address['low']))
+            if nvme_list[id].type == 'CQ Entry':
+                if CQ_address == nvme_list[id].address:
+                    cqentry = nvme_list[id]
                     nvmecmd.addCQEntry(cqentry)
                     nvme_list.pop(id)
+                    id -= 1
                     break
             id -= 1
         if nvmecmd.CQEntry == None:
-#             print("Cannot CQ Entry which matches with CQ Doorbell [qid=%x DoorbellValue=0x%x]" % (cqdoorbell.Qid, cqdoorbell.DoorbellValue))
+            print("Cannot FIND CQ Entry which matches with CQ Doorbell [qid=%x DoorbellValue=0x%x]" % (cqdoorbell.Qid, cqdoorbell.DoorbellValue))
+            cqdoorbell.show()
+#             sys.exit()
             continue
+#             break
         # Find Match SQ Entry
-        for item in nvme_list[:id:-1]:
-            if item.type == 'SQ Entry' :
-                if item.Qid == cqentry.Qid and item.cid == cqentry.cid:
-                    sqentry = item
+#         for item in nvme_list[:id:-1]:
+        while id > 0:
+#             print('id=', id)
+            if nvme_list[id].type == 'SQ Entry' :
+                if nvme_list[id].Qid == cqentry.Qid and nvme_list[id].cid == cqentry.cid:
+                    sqentry = nvme_list[id]
                     nvmecmd.addSQEntry(sqentry)
                     nvme_list.pop(id)
+                    id -= 1
                     break
             id -= 1
         if nvmecmd.SQEntry == None:
-#             print("Cannot SQ Entry which matches with CQ Entry [qid=%x cid=0x%x]" % (cqentry.Qid, cqentry.cid))
+            print("Cannot FIND SQ Entry which matches with CQ Entry [qid=%x cid=0x%x]" % (cqentry.Qid, cqentry.cid))
+            cqentry.show()
+#             sys.exit()
             continue
         
         # Find Match SQ Doorbell
         SQ_doorbell_value = 0x1 + ((sqentry.address['low'] - nvme.SQEntryBaseAddressArray[sqentry.Qid]['low']) / 0x40)
-        for item in nvme_list[:id:-1]:
-            if item.type == 'SQ Doorbell':
-                if item.DoorbellValue == SQ_doorbell_value:
-                    sqdoorbell = item
+        if SQ_doorbell_value == (nvme.SQSizeArray[sqentry.Qid] + 1):
+            SQ_doorbell_value = 0
+#         print('sqentry.address[low]=0x%x' % sqentry.address['low'])
+#         print('nvme.SQEntryBaseAddressArray[sqentry.Qid][low]=0x%x' % nvme.SQEntryBaseAddressArray[sqentry.Qid]['low'])
+#         print ('SQ_doorbell_value=', SQ_doorbell_value)
+#         for item in nvme_list[:id:-1]:
+        while id > 0:
+            if nvme_list[id].type == 'SQ Doorbell':
+#                 print ('nvme_list[id].DoorbellValue=', nvme_list[id].DoorbellValue)
+                if nvme_list[id].DoorbellValue == SQ_doorbell_value:
+                    sqdoorbell = nvme_list[id]
                     nvmecmd.addSQDoorbell(sqdoorbell)
                     nvme_list.pop(id)
+                    id -= 1
                     break
             id -= 1
-        nvmecmd.show()
-        sys.exit()
+        if nvmecmd.SQDoorbell == None:
+            print("Cannot FIND SQ Doorbell which matches with SQ Entry [qid=%x cid=0x%x]" % (sqentry.Qid, sqentry.cid))
+            sqentry.show()
+#             sys.exit()
+            continue
+        nvmecmd.caculateDelta()
+#         nvmecmd.show()
+        nvme_cmd_list.append(nvmecmd)
+#         sys.exit()
+    duration_array = list()
+    for nvme_cmd in nvme_cmd_list:
+        duration_array.append(nvme_cmd.time2CQEntry)
+    MAX_duration = max(duration_array)
+    print('MAX_duration = %ds' % MAX_duration)

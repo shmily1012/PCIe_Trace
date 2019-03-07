@@ -29,15 +29,31 @@ class NVMeCMD(object):
     def addCQEntry(self, packet):
         self.CQEntry = packet
 
+
     def addSQEntry(self, packet):
         self.SQEntry = packet
 
+
+    def caculateDelta(self):
+        
+        self.time2SQEntry = self.SQEntry.time - self.SQDoorbell.time
+        self.time2CQEntry = self.CQEntry.time - self.SQDoorbell.time
+        self.time2CQDoorbell = self.CQDoorbell.time - self.SQDoorbell.time
+
     def show(self):
+        self.caculateDelta()
         print("********************************************")
         self.SQDoorbell.show()
-        self.SQDoorbell.show()
+        self.SQDoorbell.packet.show()
+        self.SQEntry.show()
+        self.SQEntry.packet.show()
+        print("----| %.6fs" % (self.time2SQEntry / 1000000000))
         self.CQEntry.show()
+        self.CQEntry.packet.show()
+        print("----| %.6fs" % (self.time2CQEntry / 1000000000))
         self.CQDoorbell.show()
+        self.CQDoorbell.packet.show()
+        print("----| %.6fs" % (self.time2CQDoorbell / 1000000000))
         print("********************************************")
         
 

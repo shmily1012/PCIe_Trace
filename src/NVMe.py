@@ -30,6 +30,8 @@ class NVMe(object):
         self.CollectNVMeInfo('NVMe.xml')
         self.SQEntryBaseAddressArray = list()
         self.CQEntryBaseAddressArray = list()
+        self.SQSizeArray = list()
+        self.CQSizeArray = list()
         self.CollectQueueInfo()
 #         sys.exit()
         
@@ -50,17 +52,26 @@ class NVMe(object):
             address = {'low':0x0, 'high':0x0}
             self.SQEntryBaseAddressArray.append(address)
             self.CQEntryBaseAddressArray.append(address)
+            self.SQSizeArray.append(0)
+            self.CQSizeArray.append(0)
         
         for i in range(MAX_QUEUE_NUM):
             for Q in self.Queue_info:
-                print (Q.Type, Q.Qid)
+#                 print (Q.Type, Q.Qid)
                 if 'SQ' in Q.Type and Q.Qid == i:
                     self.SQEntryBaseAddressArray[i] = Q.Address
                 elif 'CQ' in Q.Type and Q.Qid == i:
                     self.CQEntryBaseAddressArray[i] = Q.Address
-#         for i in self.SQEntryBaseAddressArray:
+        for i in range(MAX_QUEUE_NUM):
+            for Q in self.Queue_info:
+#                 print(Q.Size)
+                if 'SQ' in Q.Type and Q.Qid == i:
+                    self.SQSizeArray[i] = Q.Size
+                elif 'CQ' in Q.Type and Q.Qid == i:
+                    self.CQSizeArray[i] = Q.Size 
+#         for i in self.SQSizeArray:
 #             print(i)
-#         for i in self.CQEntryBaseAddressArray:
+#         for i in self.CQSizeArray:
 #             print(i)
 #         pass
     
@@ -89,7 +100,7 @@ class NVMe(object):
                     Qid = int(line[start: end], 10)
                     q = Queue(Type, Size, Address, Qid)
                     self.Queue_info.append(q)
-                    q.show()
+#                     q.show()
                 elif r'<MBAR ID="0"' in line:
                     start = line.index(r'VALUE="') + len(r'VALUE="')
                     end = line.index(r'"', start + 1)
@@ -112,10 +123,12 @@ class NVMe(object):
         for qid in range(MAX_QUEUE_NUM):
             if packet.Address['low'] == self.BAR0['low'] + 0x1000 + self.DSTRD * 2 * qid:
 #                 print('This is SQ Doorbell. QID=', qid)
+#                 packet.show()
                 nvme_packet = SQDoorbell(Qid=qid,
                                          DoorbellValue=packet.Data[0],
                                          address=packet.Address,
-                                          time=packet.Time_stamp)
+                                          time=packet.Time_stamp,
+                                          packet=packet)
                 return nvme_packet
         return False    
 
@@ -127,10 +140,12 @@ class NVMe(object):
         for qid in range(MAX_QUEUE_NUM):
             if packet.Address['low'] == self.BAR0['low'] + 0x1008 + self.DSTRD * 2 * qid:
 #                 print('This is CQ Doorbell. QID=', qid)
+#                 packet.show()
                 nvme_packet = CQDoorbell(Qid=qid,
                                          DoorbellValue=packet.Data[0],
                                          address=packet.Address,
-                                          time=packet.Time_stamp)
+                                          time=packet.Time_stamp,
+                                          packet=packet)
                 return nvme_packet
         return False
 
@@ -142,13 +157,15 @@ class NVMe(object):
             if packet.Address['low'] & q.MASK == q.Address['low']:
                 if 'SQ' in q.Type:
 #                     print('This is SQ Entry. QID=', q.Qid)
+#                     packet.show()
                     cid = packet.Data[0] >> 16
                     cmdcode = packet.Data[0] & 0xFF
                     nvme_packet = SQEntry(Qid=q.Qid,
                                           cid=cid,
                                           cmdcode=cmdcode,
-                                          address=q.Address,
-                                          time=packet.Time_stamp)
+                                          address=packet.Address,
+                                          time=packet.Time_stamp,
+                                          packet=packet)
                     return nvme_packet
         return False
 
@@ -160,15 +177,18 @@ class NVMe(object):
             if packet.Address['low'] & q.MASK == q.Address['low']:
                 if 'CQ' in q.Type:
 #                     print('This is CQ Entry. QID=', q.Qid)
+#                     packet.show()
                     status = packet.Data[3] >> 17
                     cid = packet.Data[3] & 0xFFFF
                     sqid = packet.Data[2] >> 16
                     nvme_packet = CQEntry(Qid=q.Qid, cid=cid, status=status, sqid=sqid,
                                           address=packet.Address,
-                                          time=packet.Time_stamp)
+                                          time=packet.Time_stamp,
+                                          packet=packet)
                     return nvme_packet
         return False
 
 
 if __name__ == "__main__":
     nvme = NVMe()
+
