@@ -9,6 +9,7 @@ from Packet import Packet
 from Queue import Queue
 from NVMe import NVMe
 from NVMeCMD import NVMeCMD
+from Log import Log
 
 
 class Trace(object):
@@ -21,6 +22,7 @@ class Trace(object):
         Constructor
         '''
         self.trace = list()
+        
         self.filename = "../Trace_Files/%s" % filename
         if os.path.exists(self.filename) == False:
             print('The file, %s, does not exist.' % filename)
@@ -31,7 +33,8 @@ class Trace(object):
         fo.close()
         boundary_list = list()
         line_number = 0
-#         for line in self.buf[:500]:  # for Test
+        print('self.buf size is %d' % len(self.buf))
+#         for line in self.buf[:50000]:  # for Test
         for line in self.buf:
 #             print(line)
             if '_______|______________________________________________________________________' in line:
@@ -177,7 +180,9 @@ class Trace(object):
 if __name__ == "__main__":
     nvme_cmd_list = list()
     nvme_list = list()
-    t = Trace('Failure_trim_txt.txt')
+    Trace_File_Name = 'Failure_trim_txt.txt'
+    log = Log(Trace_File_Name)
+    t = Trace(Trace_File_Name)
 #     t.translate(t.buf[153: 160])
     nvme = NVMe()
     for p in t.trace:
@@ -197,8 +202,13 @@ if __name__ == "__main__":
 #             pass
         nvme_list.append(item)
     count = 0
+    list_size = len(nvme_list)
     while len(nvme_list):
-        print(len(nvme_list))
+        
+        list_size = len(nvme_list)
+#         print (list_size)
+        if list_size % 1000 == 0:
+            print(list_size)
         cqdoorbell = None
         cqentry = None
         sqentry = None
@@ -274,7 +284,7 @@ if __name__ == "__main__":
         while id > 0:
             if nvme_list[id].type == 'SQ Doorbell':
 #                 print ('nvme_list[id].DoorbellValue=', nvme_list[id].DoorbellValue)
-                if nvme_list[id].DoorbellValue == SQ_doorbell_value:
+                if nvme_list[id].DoorbellValue == SQ_doorbell_value and nvme_list[id].Qid == sqentry.Qid:
                     sqdoorbell = nvme_list[id]
                     nvmecmd.addSQDoorbell(sqdoorbell)
                     nvme_list.pop(id)
@@ -290,8 +300,11 @@ if __name__ == "__main__":
 #         nvmecmd.show()
         nvme_cmd_list.append(nvmecmd)
 #         sys.exit()
+    print('Logging...')
+    log.LogNVMeCMD(nvme_cmd_list, 2)
+    print('Log is Done.')
     duration_array = list()
     for nvme_cmd in nvme_cmd_list:
-        duration_array.append(nvme_cmd.time2CQEntry)
+        duration_array.append(nvme_cmd.time2CQDoorbell)
     MAX_duration = max(duration_array)
     print('MAX_duration = %ds' % MAX_duration)
