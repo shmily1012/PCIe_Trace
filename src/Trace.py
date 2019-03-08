@@ -216,7 +216,6 @@ if __name__ == "__main__":
         
         packet = nvme_list.pop()
         nvmecmd = NVMeCMD(count)
-        count += 1
         if packet.type != "CQ Doorbell":
             continue
         # Find last CQ Doorbell 
@@ -233,7 +232,6 @@ if __name__ == "__main__":
         else:
             CQ_address['low'] = 0x10 * (cqdoorbell.DoorbellValue - 0x1) + nvme.CQEntryBaseAddressArray[cqdoorbell.Qid]['low']
         CQ_address['high'] = nvme.CQEntryBaseAddressArray[cqdoorbell.Qid]['high']
-#         print ('CQ_address=0x%x 0x%x' % (CQ_address['high'], CQ_address['low']))
 
         # Find Match CQ Entry
 #         for item in nvme_list[::-1]:
@@ -299,6 +297,7 @@ if __name__ == "__main__":
         nvmecmd.caculateDelta()
 #         nvmecmd.show()
         nvme_cmd_list.append(nvmecmd)
+        count += 1
 #         sys.exit()
     print('Logging...')
     log.LogNVMeCMD(nvme_cmd_list, 2)
